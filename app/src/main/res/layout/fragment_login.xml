@@ -4,8 +4,21 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="vertical"
-              android:weightSum="1">
+              android:weightSum="1"
+              >
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/abc">
 
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:background="@drawable/layout_round_landfill_green"
+        android:padding="10dp"
+        android:theme="@style/Base.AlertDialog.AppCompat.Light"
+        android:layout_marginTop="100dp"
+        android:layout_height="wrap_content">
 
     <ImageView
         android:layout_width="wrap_content"
@@ -62,5 +75,6 @@
             android:text="@string/user_login_label"/>
 
     </RelativeLayout>
-
+    </LinearLayout>
+    </LinearLayout>
 </LinearLayout>
