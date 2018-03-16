@@ -1,7 +1,7 @@
 package com.landfilleforms.android.landfille_forms.activities_and_fragments.instantaneous;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.support.v7.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
@@ -43,6 +43,7 @@ import com.landfilleforms.android.landfille_forms.activities_and_fragments.warms
 import com.landfilleforms.android.landfille_forms.database.dao.WarmSpotDao;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -167,9 +168,12 @@ public class InstantaneousDataFragment extends Fragment {
         mInspectorLabel.setText(mInstantaneousData.getInspectorName());
 
         //between 0.1 - 70000, round before storing, if "1", 3 sig fig, else 2 sig fig
+        //-------------------------------------------------------------------------------------------------------------------------------------
+        //attempting to save value with 2 sig figs by default
         mMethaneLevelField = (EditText)v.findViewById(R.id.methane_reading);
         if(mInstantaneousData.getMethaneReading() != 0)
-            mMethaneLevelField.setText(Double.toString(mInstantaneousData.getMethaneReading()));
+            //Update once the value has been clicked it will display as a 2 sig fig
+            mMethaneLevelField.setText(String.format("%.2f", mInstantaneousData.getMethaneReading()));
         mMethaneLevelField.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -178,8 +182,11 @@ public class InstantaneousDataFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (s.equals("") || count == 0||s.toString().equals(".")) mInstantaneousData.setMethaneReading(0);
-                else mInstantaneousData.setMethaneReading(Double.parseDouble(s.toString()));
+                if (s.equals("") || count == 0||s.toString().equals("."))
+                    mInstantaneousData.setMethaneReading(0);
+                else
+                    mInstantaneousData.setMethaneReading(Double.parseDouble(s.toString()));
+
             }
 
 
@@ -475,7 +482,7 @@ public class InstantaneousDataFragment extends Fragment {
                 ImeData imeData = new ImeData();
                 imeData.setLocation(mInstantaneousData.getLandFillLocation());
                 imeData.setDate(mInstantaneousData.getStartDate());
-                imeData.setGridId(mInstantaneousData.getGridId());
+                imeData.setGrids(mInstantaneousData.getGridId());
                 imeData.setImeNumber(mInstantaneousData.getImeNumber());
                 imeData.setMethaneReading(tempMethaneLevel);
                 imeData.setInspectorFullName(mUser.getFullName());
@@ -507,7 +514,7 @@ public class InstantaneousDataFragment extends Fragment {
                 imeData.setImeNumber(mCurrentImeNumber);
                 imeData.setLocation(mInstantaneousData.getLandFillLocation());
                 imeData.setDate(mInstantaneousData.getStartDate());
-                imeData.setGridId(mInstantaneousData.getGridId());
+                imeData.setGrids(mInstantaneousData.getGridId());
                 imeData.setMethaneReading(tempMethaneLevel);
                 imeData.setInspectorFullName(mUser.getFullName());
                 imeData.setInspectorUserName(mUser.getUsername());
@@ -533,25 +540,14 @@ public class InstantaneousDataFragment extends Fragment {
             if(imeData.getImeNumber() != null && imeData.getImeNumber().trim().length() != 0)
                 imeNumbers.add(imeData.getImeNumber());
         }
-        imeNumbers.add("");
         existingImeSpinner = (Spinner) redirectionAlert.show().findViewById(R.id.existing_ime_spinner);
         List<String> imeNumbersList = new ArrayList<String>(imeNumbers);
+        Collections.sort(imeNumbersList);
         ArrayAdapter<String> imeNumberSpinnerItems = new ArrayAdapter<String>(this.getActivity(),android.R.layout.simple_list_item_1, imeNumbersList){
             @Override
             public View getDropDownView(int position, View convertView, ViewGroup parent) {
 
-                View v = null;
-
-                if (position == 0) {
-                    TextView tv = new TextView(getContext());
-                    tv.setHeight(0);
-                    tv.setVisibility(View.GONE);
-                    v = tv;
-                }
-                else {
-
-                    v = super.getDropDownView(position, null, parent);
-                }
+                View v = super.getDropDownView(position, null, parent);
 
                 parent.setVerticalScrollBarEnabled(false);
                 return v;
@@ -559,7 +555,7 @@ public class InstantaneousDataFragment extends Fragment {
         };
 
         existingImeSpinner.setAdapter(imeNumberSpinnerItems);
-        existingImeSpinner.setSelection(imeNumberSpinnerItems.getPosition(imeNumberSpinnerItems.getItem(1).toString()));
+        existingImeSpinner.setSelection(imeNumberSpinnerItems.getPosition(imeNumberSpinnerItems.getItem(0).toString()));
         existingImeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -585,7 +581,7 @@ public class InstantaneousDataFragment extends Fragment {
                 WarmSpotData warmSpotData = new WarmSpotData();
                 //Log.d("From FormFrag",getActivity().getIntent().getStringExtra(EXTRA_USERNAME));
                 //temp default is lopez
-                warmSpotData.setGridId(mInstantaneousData.getGridId());
+                warmSpotData.setGrids(mInstantaneousData.getGridId()); // FIXME WIll this be an issue?
                 warmSpotData.setMaxMethaneReading(tempMethaneLevel);
                 warmSpotData.setDate(mInstantaneousData.getStartDate());
                 warmSpotData.setLocation(mInstantaneousData.getLandFillLocation());
@@ -651,6 +647,20 @@ public class InstantaneousDataFragment extends Fragment {
         });
         AlertDialog deleteAlert = alertBuilder.create();
         deleteAlert.setTitle("Delete Instantaneous Entry");
+        deleteAlert.show();
+    }
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    public void halt(android.support.v7.app.AlertDialog.Builder alertBuilder) {
+        alertBuilder.setMessage("You are leaving fields blank!\n If you would like to save hit submit.")
+                .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
+                    }
+                });
+        android.support.v7.app.AlertDialog deleteAlert = alertBuilder.create();
+        deleteAlert.setTitle("Active Data");
         deleteAlert.show();
     }
 

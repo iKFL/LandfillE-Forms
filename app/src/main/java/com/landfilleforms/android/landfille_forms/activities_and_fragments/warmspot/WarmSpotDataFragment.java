@@ -1,7 +1,9 @@
 package com.landfilleforms.android.landfille_forms.activities_and_fragments.warmspot;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
+import android.support.v7.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
@@ -32,9 +34,13 @@ import com.landfilleforms.android.landfille_forms.database.dao.InstrumentDao;
 import com.landfilleforms.android.landfille_forms.database.dao.WarmSpotDao;
 import com.landfilleforms.android.landfille_forms.model.Instrument;
 import com.landfilleforms.android.landfille_forms.model.WarmSpotData;
+import com.landfilleforms.android.landfille_forms.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 //Done?
@@ -44,7 +50,8 @@ public class WarmSpotDataFragment extends Fragment {
     private static final String DIALOG_DATE = "DialogDate";
     private static final int REQUEST_DATE = 0;
 
-    List<Instrument> mInstruments;
+    private List<Instrument> mInstruments;
+    private Set<String> grids = new TreeSet<>();
     private WarmSpotData mWarmSpotData;
     private boolean newlyCreatedData;
 
@@ -58,7 +65,9 @@ public class WarmSpotDataFragment extends Fragment {
     private Button mDateButton;
     private Button mSubmitButton;
 
-
+    private Button insert,delete;
+    private TextView mGridList;
+    private StringBuilder gridBuilder = new StringBuilder();
 
     public static WarmSpotDataFragment newInstance(UUID warmspotDataId) {
         Bundle args = new Bundle();
@@ -74,7 +83,7 @@ public class WarmSpotDataFragment extends Fragment {
         super.onCreate(savedInstanceState);
         UUID warmspotDataId = (UUID) getArguments().getSerializable(ARG_WARM_SPOT_DATA_ID);
         mWarmSpotData = WarmSpotDao.get(getActivity()).getWarmSpotData(warmspotDataId);
-        if(mWarmSpotData.getGridId() == null)
+        if(mWarmSpotData.getGrids() == null)
             newlyCreatedData = true;
         else
             newlyCreatedData = false;
@@ -107,13 +116,22 @@ public class WarmSpotDataFragment extends Fragment {
         }
     }
 
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_warm_spot_data, container, false);
         mInstruments = InstrumentDao.get(getActivity()).getInstrumentsBySiteForSurface(mWarmSpotData.getLocation());
 
+
+        //sample setting up for early button use
+        mSubmitButton = (Button)v.findViewById(R.id.submit);
+
         mInspectorLabel = (TextView)v.findViewById(R.id.inspector_name);
         mInspectorLabel.setText(mWarmSpotData.getInspectorFullName());
+
+        insert = (Button) v.findViewById(R.id.add);
+        delete = (Button) v.findViewById(R.id.remove);
+        mGridList = (TextView) v.findViewById(R.id.gridList);
 
         mMethaneLevelField = (EditText)v.findViewById(R.id.methane_reading);
         mMethaneLevelField.setText(Double.toString(mWarmSpotData.getMaxMethaneReading()));
@@ -129,14 +147,29 @@ public class WarmSpotDataFragment extends Fragment {
                 else mWarmSpotData.setMaxMethaneReading(Double.parseDouble(s.toString()));
             }
 
+            //gives a red background for validation when its wrong and green if its good to go
             @Override
             public void afterTextChanged(Editable s) {
+                if (mWarmSpotData.getMaxMethaneReading() < 200 || mWarmSpotData.getMaxMethaneReading() > 500) {
+                    mMethaneLevelField.setBackgroundColor(Color.RED);
+                    mSubmitButton.setEnabled(false);
 
+                } else {
+                    mMethaneLevelField.setBackgroundColor(Color.GREEN);
+                    mSubmitButton.setEnabled(true);
+                }
             }
         });
 
         mLocationLabel = (TextView) v.findViewById(R.id.location);
         mLocationLabel.setText(mWarmSpotData.getLocation());
+
+        String[] gridArray = null;
+        if (mWarmSpotData.getGrids() != null) {
+            gridArray = mWarmSpotData.getGrids().split(", ");
+            grids.addAll(Arrays.asList(gridArray));
+            updateGridListString();
+        }
 
         //TODO: Create a grid table in the DB and use that instead.
         mGridIdSpinner = (Spinner)v.findViewById(R.id.grid_id);
@@ -161,14 +194,12 @@ public class WarmSpotDataFragment extends Fragment {
                 adapter = ArrayAdapter.createFromResource(this.getActivity(), R.array.empty_array, R.layout.dark_spinner_layout);;
         }
         mGridIdSpinner.setAdapter(adapter);
-        mGridIdSpinner.setSelection(adapter.getPosition(mWarmSpotData.getGridId()));
-
-
+        mGridIdSpinner.setSelection(gridArray != null ? adapter.getPosition(gridArray[gridArray.length - 1]) : 0);
 
         mGridIdSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                mWarmSpotData.setGridId(parent.getItemAtPosition(position).toString());
+                // Do nothing.
             }
 
             @Override
@@ -176,6 +207,21 @@ public class WarmSpotDataFragment extends Fragment {
 
             }
         });
+
+        insert.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                addGrid();
+            }
+        } );
+        delete.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                removeGrid();
+            }
+        });
+
+
 
         mInstrumentSpinner = (Spinner) v.findViewById(R.id.instrument_serial_no_spinner);
         ArrayAdapter<Instrument> instrumentAdapter = new ArrayAdapter<Instrument>(this.getActivity(), R.layout.dark_spinner_layout, mInstruments);
@@ -244,14 +290,17 @@ public class WarmSpotDataFragment extends Fragment {
         });
 
 
-        mSubmitButton = (Button)v.findViewById(R.id.submit);
         mSubmitButton.setText(R.string.submit_button_label);
         mSubmitButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
                 if(mWarmSpotData.getMaxMethaneReading() < 200 || mWarmSpotData.getMaxMethaneReading() >=500) {
                     Toast.makeText(getActivity(), R.string.improper_methane_warmspot_toast, Toast.LENGTH_SHORT).show();
+
                 }
                 else {
+
+                    mWarmSpotData.setGrids(StringUtils.collectionToSortedString(grids, ", "));
+
                     getActivity().finish();
                     Toast.makeText(getActivity(), R.string.warmspot_added_toast, Toast.LENGTH_SHORT).show();
                 }
@@ -267,9 +316,15 @@ public class WarmSpotDataFragment extends Fragment {
             public boolean onKey(View v, int keyCode, KeyEvent event) {
                 Log.i(TAG, "keyCode: " + keyCode);
                 if( keyCode == KeyEvent.KEYCODE_BACK ) {
+                    System.out.println(mWarmSpotData);
                     if(newlyCreatedData) {
-                        WarmSpotDao.get(getActivity()).removeWarmSpotData(mWarmSpotData);
-                        Toast.makeText(getActivity(), R.string.new_warmspot_cancelation_toast, Toast.LENGTH_SHORT).show();
+                        //NEW
+                        //ADDING THIS THIS TO WARN A DELETE
+                        AlertDialog.Builder alertBuilder =  new AlertDialog.Builder(getActivity());
+                        dialogDeleteWarmspotEntry(alertBuilder);
+//                        Instead of this
+//                        WarmSpotDao.get(getActivity()).removeWarmSpotData(mWarmSpotData);
+//                        Toast.makeText(getActivity(), R.string.new_warmspot_cancelation_toast, Toast.LENGTH_SHORT).show();
                     }
                     else {
                         Toast.makeText(getActivity(), R.string.unsaved_changes_discarded_toast, Toast.LENGTH_SHORT).show();
@@ -320,6 +375,34 @@ public class WarmSpotDataFragment extends Fragment {
         AlertDialog deleteAlert = alertBuilder.create();
         deleteAlert.setTitle("Delete Warmspot Entry");
         deleteAlert.show();
+    }
+
+    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    public void halt(AlertDialog.Builder alertBuilder) {
+        alertBuilder.setMessage("You are leaving fields blank!\n If you would like to save hit submit.")
+                .setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
+                    }
+                });
+        AlertDialog deleteAlert = alertBuilder.create();
+        deleteAlert.setTitle("Active Data");
+        deleteAlert.show();
+    }
+
+    private void updateGridListString() {
+        mGridList.setText(StringUtils.collectionToSortedString(grids, ", "));
+    }
+
+    private void addGrid(){
+        grids.add(String.valueOf(mGridIdSpinner.getSelectedItem()));
+        updateGridListString();
+    }
+
+    private void removeGrid(){
+        grids.remove(String.valueOf(mGridIdSpinner.getSelectedItem()));
+        updateGridListString();
     }
 
 }

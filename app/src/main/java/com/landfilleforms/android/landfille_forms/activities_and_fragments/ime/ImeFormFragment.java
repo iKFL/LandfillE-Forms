@@ -38,6 +38,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static android.media.CamcorderProfile.get;
+
 
 // TODO: Create Layout file, include all the fields
 public class ImeFormFragment extends Fragment {
@@ -47,6 +49,9 @@ public class ImeFormFragment extends Fragment {
     private User mUser;
     List<ImeData> mImeDatas;
     private String mCurrentImeNumber;
+    private String sample = "";
+    private String[] temp;
+
 
 
 
@@ -132,9 +137,21 @@ public class ImeFormFragment extends Fragment {
         //Finds all the grids related to a list of IME entries
         Set<String> imeGrids = new HashSet<String>();
         for(int i = 0; i < mImeDatas.size(); i++) {
-            if(mImeDatas.get(i).getGridId() != null && mImeDatas.get(i).getGridId().trim().length() != 0)
-                imeGrids.add(mImeDatas.get(i).getGridId());
+            if(mImeDatas.get(i).getGrids() != null && mImeDatas.get(i).getGrids().trim().length() != 0)
+                //imeGrids.add(mImeDatas.get(i).getGrids());
+                sample = sample + mImeDatas.get(i).getGrids();
+
         }
+
+            temp = sample.split("\\s+");
+
+            for (int i = 0; i < temp.length; i++) {
+                if(temp[i] != null || temp[i] == "")
+                imeGrids.add(temp[i]);
+
+            }
+
+
         mImeGridsField = (TextView) v.findViewById(R.id.ime_grids);
         mImeGridsField.setText(imeGrids.toString());
 
@@ -310,8 +327,10 @@ public class ImeFormFragment extends Fragment {
 
         public void bindImeData(ImeData imeData) {
             mImeData = imeData;
-            mGridIdView.setText(mImeData.getGridId());
-            mMethaneReadingView.setText(Double.toString(mImeData.getMethaneReading()));
+            mGridIdView.setText(mImeData.getGrids());
+            //display 2 sig figs
+            mMethaneReadingView.setText(String.format("%.2f", mImeData.getMethaneReading()));
+
             mStartDateView.setText(DateFormat.format("yyyy-MM-dd",mImeData.getDate()));
             mIMEno.setText(mImeData.getImeNumber());
             //mStartTimeView.setText(DateFormat.format("HH:mm:ss",mImeData.getStartDate()));
